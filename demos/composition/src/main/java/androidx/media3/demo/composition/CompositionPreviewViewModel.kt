@@ -604,6 +604,10 @@ class CompositionPreviewViewModel(application: Application) : AndroidViewModel(a
     compositionPlayer.play()
   }
 
+  fun pause() {
+    compositionPlayer.pause()
+  }
+
   fun exportComposition() {
     // Cancel and clean up files from any ongoing export.
     cancelExport()

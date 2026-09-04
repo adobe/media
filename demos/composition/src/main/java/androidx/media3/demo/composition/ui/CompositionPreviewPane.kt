@@ -287,6 +287,9 @@ internal fun CompositionPreviewPane(
       Button(onClick = { viewModel.play() }, enabled = uiState.isCompositionSet) {
         Text(text = stringResource(R.string.play))
       }
+      Button(onClick = { viewModel.pause() }, enabled = uiState.isCompositionSet) {
+        Text(text = stringResource(R.string.pause))
+      }
       Button(onClick = onOpenExportOptions) {
         Text(text = stringResource(R.string.export_settings))
       }

@@ -580,6 +580,21 @@ public final class DefaultGlFrameProcessor implements FrameProcessor {
       if (!waitAndCloseFence(asyncFrame)) {
         GLES20.glFinish();
       }
+      long contentTimeUs = asyncFrame.frame.getContentTimeUs();
+      long presentationTimeUs =
+          frame.getMetadata().containsKey(Frame.KEY_PRESENTATION_TIME_US)
+              ? (Long) checkNotNull(frame.getMetadata().get(Frame.KEY_PRESENTATION_TIME_US))
+              : C.TIME_UNSET;
+      long frameNumber = (contentTimeUs + 16666) / 33333;
+      Log.d(
+          TAG,
+          "Frame: contentTimeUs="
+              + contentTimeUs
+              + ", presentationTimeUs="
+              + presentationTimeUs
+              + ", frameNumber="
+              + frameNumber
+              + " (at 30fps)");
       convertedGlTextureFrames.put(
           sequenceIndex,
           checkNotNull(

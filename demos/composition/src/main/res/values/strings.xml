@@ -50,6 +50,7 @@
   <string name="effect_name_dizzy_crop">Dizzy Crop</string>
   <string name="set_composition" translatable="false">Prepare</string>
   <string name="play" translatable="false">Play</string>
+  <string name="pause" translatable="false">Pause</string>
   <string name="add_item">Add Item</string>
   <string name="add_remote_file">Add Remote</string>
   <string name="add_local_file">Add Local</string>
