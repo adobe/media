@@ -34,6 +34,7 @@ import androidx.media3.common.video.AsyncFrame;
 import androidx.media3.common.video.DefaultHardwareBufferFrame;
 import androidx.media3.common.video.Frame;
 import androidx.media3.effect.HardwareBufferFrame;
+import androidx.media3.common.util.Log;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.math.RoundingMode;
@@ -47,6 +48,7 @@ import java.util.Queue;
  * ImmutableList<AsyncFrame>}.
  */
 /* package */ class FrameAggregator implements AutoCloseable {
+  private static final String TAG = "FrameAggregator";
   private static final VirtualFrameToken VIRTUAL_FRAME_TOKEN = new VirtualFrameToken();
 
   private final Consumer<ImmutableList<AsyncFrame>> downstreamConsumer;
@@ -570,11 +572,29 @@ import java.util.Queue;
 
       while (!frames.isEmpty()) {
         HardwareBufferFrame nextFrame = checkNotNull(frames.peek());
-        if (nextFrame.sequencePresentationTimeUs < targetTime) {
+        if (nextFrame.sequencePresentationTimeUs + 1 < targetTime) {
+          long droppedFrameNumber = (nextFrame.sequencePresentationTimeUs + 16666) / 33333;
+          Log.d(
+              TAG,
+              "Dropping frame: sequencePresentationTimeUs="
+                  + nextFrame.sequencePresentationTimeUs
+                  + ", frameNumber="
+                  + droppedFrameNumber
+                  + ", targetTime="
+                  + targetTime);
           frames.poll();
           nextFrame.release(/* releaseFence= */ null);
         } else {
           // Found the first frame >= targetTime
+          long matchedFrameNumber = (nextFrame.sequencePresentationTimeUs + 16666) / 33333;
+          Log.d(
+              TAG,
+              "Matched frame: sequencePresentationTimeUs="
+                  + nextFrame.sequencePresentationTimeUs
+                  + ", frameNumber="
+                  + matchedFrameNumber
+                  + ", targetTime="
+                  + targetTime);
           break;
         }
       }
