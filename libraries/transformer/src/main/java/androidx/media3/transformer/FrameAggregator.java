@@ -504,7 +504,7 @@ import java.util.Queue;
 
       while (!frames.isEmpty()) {
         AsyncFrame nextFrame = checkNotNull(frames.peek());
-        if (nextFrame.frame.getContentTimeUs() < targetTime) {
+        if (nextFrame.frame.getContentTimeUs() + 1 < targetTime) {
           frames.poll();
           TransformerUtil.releaseIfNeeded(nextFrame.frame, /* releaseFence= */ null);
         } else {
