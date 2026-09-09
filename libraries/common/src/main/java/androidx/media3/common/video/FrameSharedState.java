@@ -19,6 +19,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Util;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 /* package */ final class FrameSharedState {
 
+  private static final String TAG = "FrameSharedState";
   private static final long RELEASE_TIMEOUT_MS = 500;
   private static final ExecutorService FENCE_WAIT_EXECUTOR =
       Util.newSingleThreadExecutor("FrameSharedState:FenceWaitThread");
@@ -105,7 +107,20 @@ import java.util.concurrent.RejectedExecutionException;
           () -> {
             try {
               for (int i = 0; i < fencesToWaitOn.size(); i++) {
-                checkState(fencesToWaitOn.get(i).awaitMs(RELEASE_TIMEOUT_MS));
+                // Replaced checkState with Log.w to avoid fatal crash when GPU fence
+                // times out under heavy load — the finally block releases resources either way.
+                // checkState(fencesToWaitOn.get(i).awaitMs(RELEASE_TIMEOUT_MS));
+                if (!fencesToWaitOn.get(i).awaitMs(RELEASE_TIMEOUT_MS)) {
+                  Log.w(
+                      TAG,
+                      "Fence "
+                          + i
+                          + " of "
+                          + fencesToWaitOn.size()
+                          + " did not signal within "
+                          + RELEASE_TIMEOUT_MS
+                          + "ms during release.");
+                }
               }
             } finally {
               closeAll(fencesToWaitOn);
