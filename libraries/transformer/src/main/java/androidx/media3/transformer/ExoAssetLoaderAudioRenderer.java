@@ -37,6 +37,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   private final Codec.DecoderFactory decoderFactory;
   @Nullable private final LogSessionId logSessionId;
 
+  private int inputEncoderDelay;
+  private int inputEncoderPadding;
   private boolean hasPendingConsumerInput;
 
   public ExoAssetLoaderAudioRenderer(
@@ -52,6 +54,23 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   @Override
   public String getName() {
     return TAG;
+  }
+
+  @Override
+  protected void onInputFormatRead(Format inputFormat) {
+    inputEncoderDelay = inputFormat.encoderDelay;
+    inputEncoderPadding = inputFormat.encoderPadding;
+  }
+
+  @Override
+  protected Format overrideOutputFormat(Format format) {
+    if (inputEncoderDelay != 0 || inputEncoderPadding != 0) {
+      return format.buildUpon()
+          .setEncoderDelay(inputEncoderDelay)
+          .setEncoderPadding(inputEncoderPadding)
+          .build();
+    }
+    return format;
   }
 
   @Override

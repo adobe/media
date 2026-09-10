@@ -45,6 +45,7 @@ import androidx.media3.common.audio.ChannelMixingMatrix;
 import androidx.media3.common.audio.SonicAudioProcessor;
 import androidx.media3.common.audio.SpeedChangingAudioProcessor;
 import androidx.media3.decoder.DecoderInputBuffer;
+import androidx.media3.exoplayer.audio.TrimmingAudioProcessor;
 import androidx.media3.effect.DebugTraceUtil;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
@@ -149,7 +150,9 @@ import java.util.concurrent.atomic.AtomicLong;
             inputFormat.metadata,
             preProcessingAudioFormat,
             requestedOutputAudioFormat,
-            silenceAppendingAudioProcessor);
+            silenceAppendingAudioProcessor,
+            inputFormat.encoderDelay,
+            inputFormat.encoderPadding);
     // APP configuration not active until flush called. getOutputAudioFormat based on active config.
     userPipeline.flush(StreamMetadata.DEFAULT);
     outputAudioFormat = userPipeline.getOutputAudioFormat();
@@ -557,13 +560,21 @@ import java.util.concurrent.atomic.AtomicLong;
           new AudioProcessingPipeline(pendingChange.editedMediaItem.preProcessingAudioProcessors);
       AudioFormat postAudioFormat = preProcessingPipeline.configure(pendingAudioFormat);
 
+      int trimStartFrames = 0;
+      int trimEndFrames = 0;
+      if (pendingChange.format != null) {
+        trimStartFrames = pendingChange.format.encoderDelay;
+        trimEndFrames = pendingChange.format.encoderPadding;
+      }
       userPipeline =
           configureProcessing(
               pendingChange.editedMediaItem,
               metadata,
               postAudioFormat,
               /* requiredOutputAudioFormat= */ outputAudioFormat,
-              silenceAppendingAudioProcessor);
+              silenceAppendingAudioProcessor,
+              trimStartFrames,
+              trimEndFrames);
     }
 
     // positionOffsetUs and the output of preProcessingPipeline should be congruent, so we don't
@@ -621,9 +632,16 @@ import java.util.concurrent.atomic.AtomicLong;
       @Nullable Metadata metadata,
       AudioFormat inputAudioFormat,
       AudioFormat requiredOutputAudioFormat,
-      SilenceAppendingAudioProcessor silenceAppendingAudioProcessor)
+      SilenceAppendingAudioProcessor silenceAppendingAudioProcessor,
+      int trimStartFrames,
+      int trimEndFrames)
       throws UnhandledAudioFormatException {
     ImmutableList.Builder<AudioProcessor> audioProcessors = new ImmutableList.Builder<>();
+    if (trimStartFrames > 0 || trimEndFrames > 0) {
+      TrimmingAudioProcessor trimmingAudioProcessor = new TrimmingAudioProcessor();
+      trimmingAudioProcessor.setTrimFrameCount(trimStartFrames, trimEndFrames);
+      audioProcessors.add(trimmingAudioProcessor);
+    }
     audioProcessors.add(silenceAppendingAudioProcessor);
 
     // TODO: b/467992561 - Move SEF SpeedChangingAudioProcessor into pre-processing pipeline.
@@ -651,6 +669,8 @@ import java.util.concurrent.atomic.AtomicLong;
               /* inputChannelCount= */ 2, requiredOutputAudioFormat.channelCount));
       audioProcessors.add(channelCountChanger);
     }
+
+    audioProcessors.add(new SeamDeclickAudioProcessor());
 
     AudioProcessingPipeline audioProcessingPipeline =
         new AudioProcessingPipeline(audioProcessors.build());
