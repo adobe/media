@@ -519,7 +519,7 @@ import java.util.Queue;
 
       while (!frames.isEmpty()) {
         HardwareBufferFrame nextFrame = checkNotNull(frames.peek());
-        if (nextFrame.sequencePresentationTimeUs < targetTime) {
+        if ((nextFrame.sequencePresentationTimeUs + 1) < targetTime) {
           frames.poll();
           nextFrame.release(/* releaseFence= */ null);
         } else {
