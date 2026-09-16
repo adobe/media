@@ -123,6 +123,7 @@ import java.util.Objects;
           e, "Error while registering input " + inputInfos.size());
     }
     inputInfos.add(new InputInfo(audioGraphInput));
+    isMixerReady = false;
     activeInputs++;
     DebugTraceUtil.logEvent(
         COMPONENT_AUDIO_GRAPH,
