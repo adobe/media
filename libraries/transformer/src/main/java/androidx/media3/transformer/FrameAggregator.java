@@ -43,7 +43,6 @@ import java.util.Queue;
  * ImmutableList<AsyncFrame>}.
  */
 /* package */ class FrameAggregator implements AutoCloseable {
-
   private final Consumer<ImmutableList<AsyncFrame>> downstreamConsumer;
   private final Consumer<Integer> onFlush;
   private final List<FrameQueue> inputFrameQueues;
@@ -168,6 +167,18 @@ import java.util.Queue;
    *     to the number of sequences.
    */
   public void flush(int sequenceIndex) {
+    flush(sequenceIndex, /* seekPositionUs= */ C.TIME_UNSET);
+  }
+
+  /**
+   * Removes all frames from the given sequence and initializes the virtual clock from a seek
+   * position.
+   *
+   * @param sequenceIndex The index of the sequence to flush.
+   * @param seekPositionUs The composition seek position, in microseconds, or {@link C#TIME_UNSET}
+   *     to initialize the virtual clock from the next available frame.
+   */
+  public void flush(int sequenceIndex, long seekPositionUs) {
     checkArgument(sequenceIndex >= 0);
     checkArgument(sequenceIndex < numSequences);
     checkState(inputFrameQueues.get(sequenceIndex).isRegistered);
@@ -189,8 +200,11 @@ import java.util.Queue;
     // flushes all sequences iteratively. If independent flushing is supported in the future,
     // this behavior may need to be re-evaluated based on the new requirements.
     if (frameRate != null) {
-      nextVirtualFrameIndex = C.INDEX_UNSET;
       clearCachedVirtualFrame();
+      nextVirtualFrameIndex =
+          seekPositionUs == C.TIME_UNSET
+              ? C.INDEX_UNSET
+              : getVirtualFrameIndexCeil(seekPositionUs, frameRate);
     }
     onFlush.accept(sequenceIndex);
   }
