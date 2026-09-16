@@ -2005,8 +2005,7 @@ public class FrameAggregatorTest {
   }
 
   @Test
-  public void
-      flush_withFrameRateAndSeekToFrameAlignedWithRoundedMicrosecond_retainsAndOutputsFrame() {
+  public void flush_withFrameRateAndSeekPosition_usesSeekPositionForFirstVirtualTick() {
     FrameAggregator frameAggregator =
         new FrameAggregator(
             /* numSequences= */ 1,
@@ -2015,26 +2014,22 @@ public class FrameAggregatorTest {
             /* onFlush= */ flushedSequences::add);
     registerAllSequences(frameAggregator, /* numSequences= */ 1);
 
+    frameAggregator.flush(/* sequenceIndex= */ 0, /* seekPositionUs= */ 9_966_000);
     frameAggregator.queueFrame(
-        createFrame(/* presentationTimeUs= */ 0, /* sequencePresentationTimeUs= */ 0),
+        createFrame(
+            /* presentationTimeUs= */ 9_976_633,
+            /* sequencePresentationTimeUs= */ 9_976_633),
         /* sequenceIndex= */ 0);
-
-    assertThat(outputFrames).hasSize(1); // Pre-seek Virtual Tick emitted
-
-    // Seek to 66_667us (Frame 2 at 30fps)
-    frameAggregator.flush(/* sequenceIndex= */ 0);
-
-    frameAggregator.queueFrame(
-        createFrame(/* presentationTimeUs= */ 66_667, /* sequencePresentationTimeUs= */ 66_667),
-        /* sequenceIndex= */ 0);
+    frameAggregator.queueEndOfStream(/* sequenceIndex= */ 0);
 
     assertThat(outputFrames).hasSize(2);
     assertOutputPacket(
-        Iterables.getLast(outputFrames), /* expectedSize= */ 1, /* expectedTimeUs= */ 66_667);
+        outputFrames.get(0), /* expectedSize= */ 1, /* expectedTimeUs= */ 9_966_667);
+    assertThat(outputFrames.get(1)).containsExactly(END_OF_STREAM_ASYNC_FRAME);
   }
 
   @Test
-  public void queueFrame_withFrameRateAndMultipleItemsAndRetentionDisabled_retimesTimestamps() {
+  public void queueFrame_withFrameRate_multipleItems_retimesPresentationAndSequenceTimestamps() {
     FrameAggregator frameAggregator =
         new FrameAggregator(
             /* numSequences= */ 1,
