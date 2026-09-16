@@ -457,6 +457,37 @@ public class AudioGraphTest {
   }
 
   @Test
+  public void registerInput_afterMixerIsReady_registersNewSourceBeforeFeeding() throws Exception {
+    AudioGraph audioGraph =
+        new AudioGraph(new DefaultAudioMixer.Factory(), /* effects= */ ImmutableList.of());
+    AudioGraphInput firstInput =
+        audioGraph.registerInput(FAKE_ITEM, getPcmFormat(STEREO_44100));
+    firstInput.onMediaItemChanged(
+        FAKE_ITEM,
+        /* durationUs= */ C.TIME_UNSET,
+        /* decodedFormat= */ getPcmFormat(STEREO_44100),
+        /* isLast= */ true,
+        /* positionOffsetUs= */ 0);
+    firstInput.getOutput();
+    byte[] inputData = TestUtil.buildTestData(/* length= */ 100 * STEREO_44100.bytesPerFrame);
+    assertThat(queueBufferIntoInput(inputData, firstInput)).isTrue();
+    assertThat(audioGraph.getOutput().hasRemaining()).isTrue();
+
+    AudioGraphInput secondInput =
+        audioGraph.registerInput(FAKE_ITEM, getPcmFormat(STEREO_44100));
+    secondInput.onMediaItemChanged(
+        FAKE_ITEM,
+        /* durationUs= */ C.TIME_UNSET,
+        /* decodedFormat= */ getPcmFormat(STEREO_44100),
+        /* isLast= */ true,
+        /* positionOffsetUs= */ 0);
+    secondInput.getOutput();
+    assertThat(queueBufferIntoInput(inputData, secondInput)).isTrue();
+
+    assertThat(audioGraph.getOutput().hasRemaining()).isTrue();
+  }
+
+  @Test
   public void flush_withNonZeroPositionOffset_doesNotDiscardFollowingData() throws Exception {
     AudioGraph audioGraph =
         new AudioGraph(new DefaultAudioMixer.Factory(), /* effects= */ ImmutableList.of());
