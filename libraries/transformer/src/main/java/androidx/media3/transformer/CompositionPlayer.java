@@ -1179,7 +1179,8 @@ public final class CompositionPlayer extends SimpleBasePlayer {
                   HardwareBufferFrameReader frameReader =
                       (HardwareBufferFrameReader) checkNotNull(message);
                   frameReader.flush();
-                  checkNotNull(frameAggregator).flush(sequenceIndex);
+                  checkNotNull(frameAggregator)
+                      .flush(sequenceIndex, /* seekPositionUs= */ Util.msToUs(positionMs));
                 })
             .setPayload(playerHolders.get(i).hardwareBufferFrameReaderSupplier.get())
             .send();
