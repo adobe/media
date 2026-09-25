@@ -287,6 +287,21 @@ internal fun CompositionPreviewPane(
       Button(onClick = { viewModel.play() }, enabled = uiState.isCompositionSet) {
         Text(text = stringResource(R.string.play))
       }
+      Button(onClick = { viewModel.pause() }, enabled = uiState.isCompositionSet) {
+        Text(text = stringResource(R.string.pause))
+      }
+    }
+
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(bottom = MaterialTheme.spacing.small),
+      horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+      Button(onClick = { viewModel.seekToNextClipStart() }, enabled = uiState.isCompositionSet) {
+        Text(text = stringResource(R.string.seek_next_clip))
+      }
+      Button(onClick = { viewModel.seekToPreviousClipEnd() }, enabled = uiState.isCompositionSet) {
+        Text(text = stringResource(R.string.seek_previous_clip))
+      }
       Button(onClick = onOpenExportOptions) {
         Text(text = stringResource(R.string.export_settings))
       }

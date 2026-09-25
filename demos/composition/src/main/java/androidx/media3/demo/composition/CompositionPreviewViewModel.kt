@@ -590,6 +590,7 @@ class CompositionPreviewViewModel(application: Application) : AndroidViewModel(a
       releaseAndRecreatePlayer()
     }
     preparedComposition = composition
+    logCompositionStructure(composition)
     // Maintain the current position when updating the Composition.
     compositionPlayer.setComposition(
       composition,
@@ -602,6 +603,117 @@ class CompositionPreviewViewModel(application: Application) : AndroidViewModel(a
 
   fun play() {
     compositionPlayer.play()
+  }
+
+  fun pause() {
+    compositionPlayer.pause()
+  }
+
+  /**
+   * Logs the structure of the given [Composition], focusing on per-clip timings (durations and
+   * cumulative sequence offsets) and frame-rate settings, to help diagnose seek behavior.
+   */
+  private fun logCompositionStructure(composition: Composition) {
+    val frameAggregationFrameRate = composition.videoFrameAggregationParameters.frameRate
+    Log.d(
+      TAG,
+      "Composition structure: sequenceCount=${composition.sequences.size}" +
+        " hdrMode=${composition.hdrMode}" +
+        " frameAggregationFpsSet=${frameAggregationFrameRate != null}" +
+        " frameAggregationFps=${frameAggregationFrameRate ?: "UNSET"}" +
+        " videoFrameAggregationParameters=${composition.videoFrameAggregationParameters}",
+    )
+    composition.sequences.forEachIndexed { sequenceIndex, sequence ->
+      Log.d(
+        TAG,
+        "  Sequence[$sequenceIndex]: trackTypes=${sequence.trackTypes}" +
+          " isLooping=${sequence.isLooping} clipCount=${sequence.editedMediaItems.size}",
+      )
+      var cumulativeUs = 0L
+      sequence.editedMediaItems.forEachIndexed { clipIndex, item ->
+        val startUs = cumulativeUs
+        val endUs = cumulativeUs + item.durationUs
+        cumulativeUs = endUs
+        Log.d(
+          TAG,
+          "    Clip[$clipIndex]: durationUs=${item.durationUs} (${usToMs(item.durationUs)}ms)" +
+            " startUs=$startUs (${usToMs(startUs)}ms) endUs=$endUs (${usToMs(endUs)}ms)" +
+            " frameRate=${item.frameRate} removeVideo=${item.removeVideo}" +
+            " removeAudio=${item.removeAudio} uri=${item.mediaItem.localConfiguration?.uri}",
+        )
+      }
+      Log.d(TAG, "  Sequence[$sequenceIndex]: totalDurationUs=$cumulativeUs (${usToMs(cumulativeUs)}ms)")
+    }
+  }
+
+  /**
+   * Seeks to the beginning of the next (second) clip, i.e. the boundary between the first and second
+   * clip in the currently selected sequence.
+   *
+   * The timing is read from the prepared [Composition]: the start of the second clip equals the
+   * duration of the first clip.
+   */
+  fun seekToNextClipStart() {
+    val boundaryUs = clipBoundaryUs() ?: return
+    // Round the microsecond boundary UP to the next millisecond so the seek lands on (or just after)
+    // the boundary, i.e. the first frame of the next clip, rather than the last frame of the
+    // previous clip (usToMs truncates and would keep us inside the first clip).
+    val targetMs = Util.ceilDivide(boundaryUs, 1000L)
+    Log.d(
+      TAG,
+      "seekToNextClipStart: boundaryUs=$boundaryUs targetMs=$targetMs" +
+        " currentPositionMs=${compositionPlayer.currentPosition}",
+    )
+    compositionPlayer.seekTo(targetMs)
+  }
+
+  /**
+   * Seeks to 2 milliseconds before the end of the previous (first) clip in the currently selected
+   * sequence.
+   *
+   * The timing is read from the prepared [Composition]: the end of the first clip equals its
+   * duration.
+   */
+  fun seekToPreviousClipEnd() {
+    val boundaryUs = clipBoundaryUs() ?: return
+    val targetMs = usToMs(boundaryUs) - 2
+    Log.d(
+      TAG,
+      "seekToPreviousClipEnd: boundaryUs=$boundaryUs targetMs=$targetMs" +
+        " currentPositionMs=${compositionPlayer.currentPosition}",
+    )
+    compositionPlayer.seekTo(targetMs)
+  }
+
+  /**
+   * Returns the boundary between the first and second clip, in microseconds, read from the prepared
+   * [Composition], or null if the selected sequence does not contain at least two clips.
+   */
+  private fun clipBoundaryUs(): Long? {
+    val composition = preparedComposition
+    if (composition == null) {
+      Log.w(TAG, "clipBoundaryUs: no prepared composition; call Prepare first")
+      return null
+    }
+    val sequenceIndex = uiState.value.selectedSequenceIndex
+    val sequence = composition.sequences.getOrNull(sequenceIndex)
+    if (sequence == null) {
+      Log.w(TAG, "clipBoundaryUs: no sequence at index $sequenceIndex")
+      return null
+    }
+    val clipDurationsUs = sequence.editedMediaItems.map { it.durationUs }
+    Log.d(
+      TAG,
+      "clipBoundaryUs: sequenceIndex=$sequenceIndex clipCount=${clipDurationsUs.size}" +
+        " clipDurationsUs=$clipDurationsUs",
+    )
+    if (sequence.editedMediaItems.size < 2) {
+      Log.w(TAG, "clipBoundaryUs: sequence has fewer than 2 clips; nothing to seek to")
+      return null
+    }
+    val boundaryUs = sequence.editedMediaItems[0].durationUs
+    Log.d(TAG, "clipBoundaryUs: firstClipDurationUs=$boundaryUs")
+    return boundaryUs
   }
 
   fun exportComposition() {
