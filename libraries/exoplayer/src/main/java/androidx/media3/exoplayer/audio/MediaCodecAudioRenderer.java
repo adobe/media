@@ -71,6 +71,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException;
+import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.extractor.VorbisUtil;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
@@ -708,6 +709,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
             VorbisUtil.getVorbisToAndroidChannelLayoutMapping(audioSinkInputFormat.channelCount);
       }
     }
+    // The output format belongs to the stream being output, which may be a period before the one
+    // currently being read when the renderer has already read ahead into the next period.
+    @Nullable MediaSource.MediaPeriodId outputMediaPeriodId = getOutputStreamMediaPeriodId();
     try {
       if (SDK_INT >= 29) {
         if (isBypassEnabled()
@@ -723,7 +727,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
           new AudioSink.AudioSinkConfig.Builder(audioSinkInputFormat)
               .setOutputChannelMapping(channelMap)
               .setTimeline(getTimeline())
-              .setMediaPeriodId(getMediaPeriodId())
+              .setMediaPeriodId(
+                  outputMediaPeriodId != null ? outputMediaPeriodId : getMediaPeriodId())
               .build());
     } catch (AudioSink.ConfigurationException e) {
       throw createRendererException(
