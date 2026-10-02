@@ -283,6 +283,68 @@ public class MediaCodecAudioRendererTest {
   }
 
   @Test
+  public void onOutputFormatChanged_afterReadingAheadIntoNextPeriod_usesOutputStreamMediaPeriodId()
+      throws Exception {
+    // Keep output buffers of the first stream pending, so the output stream does not advance.
+    when(audioSink.handleBuffer(any(), anyLong(), anyInt())).thenReturn(false);
+    FakeSampleStream fakeSampleStream1 =
+        new FakeSampleStream(
+            new DefaultAllocator(/* trimOnReset= */ true, /* individualAllocationSize= */ 1024),
+            /* mediaSourceEventDispatcher= */ null,
+            DrmSessionManager.DRM_UNSUPPORTED,
+            new DrmSessionEventListener.EventDispatcher(),
+            /* initialFormat= */ AUDIO_AAC,
+            ImmutableList.of(
+                oneByteSample(/* timeUs= */ 0, C.BUFFER_FLAG_KEY_FRAME),
+                oneByteSample(/* timeUs= */ 1_000),
+                END_OF_STREAM_ITEM));
+    fakeSampleStream1.writeData(/* startPositionUs= */ 0);
+    FakeSampleStream fakeSampleStream2 =
+        new FakeSampleStream(
+            new DefaultAllocator(/* trimOnReset= */ true, /* individualAllocationSize= */ 1024),
+            /* mediaSourceEventDispatcher= */ null,
+            DrmSessionManager.DRM_UNSUPPORTED,
+            new DrmSessionEventListener.EventDispatcher(),
+            /* initialFormat= */ AUDIO_AAC,
+            ImmutableList.of(
+                oneByteSample(/* timeUs= */ 1_000_000, C.BUFFER_FLAG_KEY_FRAME),
+                END_OF_STREAM_ITEM));
+    fakeSampleStream2.writeData(/* startPositionUs= */ 0);
+    MediaSource.MediaPeriodId mediaPeriodId1 = new MediaSource.MediaPeriodId(new Object());
+    MediaSource.MediaPeriodId mediaPeriodId2 = new MediaSource.MediaPeriodId(new Object());
+    mediaCodecAudioRenderer.enable(
+        RendererConfiguration.DEFAULT,
+        new Format[] {AUDIO_AAC},
+        fakeSampleStream1,
+        /* positionUs= */ 0,
+        /* joining= */ false,
+        /* mayRenderStartOfStream= */ false,
+        /* startPositionUs= */ 0,
+        /* offsetUs= */ 0,
+        mediaPeriodId1);
+    mediaCodecAudioRenderer.start();
+    for (int i = 0; i < 10; i++) {
+      mediaCodecAudioRenderer.render(/* positionUs= */ 0, SystemClock.elapsedRealtime() * 1000);
+    }
+    mediaCodecAudioRenderer.replaceStream(
+        new Format[] {AUDIO_AAC},
+        fakeSampleStream2,
+        /* startPositionUs= */ 1_000_000,
+        /* offsetUs= */ 1_000_000,
+        mediaPeriodId2);
+    MediaFormat mediaFormat = new MediaFormat();
+    mediaFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 2);
+    mediaFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, 44100);
+
+    mediaCodecAudioRenderer.onOutputFormatChanged(AUDIO_AAC, mediaFormat);
+
+    ArgumentCaptor<AudioSink.AudioSinkConfig> configCaptor =
+        ArgumentCaptor.forClass(AudioSink.AudioSinkConfig.class);
+    verify(audioSink, atLeastOnce()).configure(configCaptor.capture());
+    assertThat(configCaptor.getValue().mediaPeriodId).isEqualTo(mediaPeriodId1);
+  }
+
+  @Test
   public void render_configuresAudioSink_afterFormatChange() throws Exception {
     Format changedFormat = AUDIO_AAC.buildUpon().setSampleRate(48_000).setEncoderDelay(400).build();
     FakeSampleStream fakeSampleStream =
