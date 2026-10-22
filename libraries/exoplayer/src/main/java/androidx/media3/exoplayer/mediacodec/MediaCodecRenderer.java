@@ -727,7 +727,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               startPositionUs,
               offsetUs,
               durationUs,
-              streamFlags));
+              streamFlags,
+              mediaPeriodId));
       if (shouldProcessStreamChangeAtStart()
           || Flags.isEnabled(Flags.FLAG_PROCESSED_STREAM_CHANGED_AT_START)) {
         onProcessedStreamChange();
@@ -743,7 +744,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               startPositionUs,
               offsetUs,
               durationUs,
-              streamFlags));
+              streamFlags,
+              mediaPeriodId));
       if (outputStreamInfo.streamOffsetUs != C.TIME_UNSET) {
         onProcessedStreamChange();
       }
@@ -754,7 +756,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               startPositionUs,
               offsetUs,
               durationUs,
-              streamFlags));
+              streamFlags,
+              mediaPeriodId));
     }
   }
 
@@ -2489,6 +2492,18 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     return outputStreamInfo.streamOffsetUs;
   }
 
+  /**
+   * Returns the {@link MediaSource.MediaPeriodId} of the stream currently being output, or {@code
+   * null} if no stream is being output.
+   *
+   * <p>This can differ from {@link #getMediaPeriodId()}, which returns the period of the stream
+   * currently being read, when the renderer has read ahead into the next period while output
+   * buffers of the previous period are still being drained from the codec.
+   */
+  protected final MediaSource.@Nullable MediaPeriodId getOutputStreamMediaPeriodId() {
+    return outputStreamInfo.mediaPeriodId;
+  }
+
   /** Returns the start position of the current output stream in microseconds. */
   protected final long getOutputStreamStartPositionUs() {
     return outputStreamInfo.startPositionUs;
@@ -2913,11 +2928,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
             /* startPositionUs= */ C.TIME_UNSET,
             /* streamOffsetUs= */ C.TIME_UNSET,
             /* durationUs= */ C.TIME_UNSET,
-            /* streamFlags= */ 0);
+            /* streamFlags= */ 0,
+            /* mediaPeriodId= */ null);
 
     private final long previousStreamLastBufferTimeUs;
     private final long startPositionUs;
     private final long streamOffsetUs;
+    private final MediaSource.@Nullable MediaPeriodId mediaPeriodId;
     private final TimedValueQueue<Format> formatQueue;
 
     private long durationUs;
@@ -2930,10 +2947,12 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         long startPositionUs,
         long streamOffsetUs,
         long durationUs,
-        @SampleStream.Flags int streamFlags) {
+        @SampleStream.Flags int streamFlags,
+        MediaSource.@Nullable MediaPeriodId mediaPeriodId) {
       this.previousStreamLastBufferTimeUs = previousStreamLastBufferTimeUs;
       this.startPositionUs = startPositionUs;
       this.streamOffsetUs = streamOffsetUs;
+      this.mediaPeriodId = mediaPeriodId;
       this.durationUs = durationUs;
       this.streamFlags = streamFlags;
       this.formatQueue = new TimedValueQueue<>();
